@@ -1,176 +1,145 @@
 import edu.berkeley.cs.succinct.util.vector.IntVector;
 
-import java.lang.reflect.Array;
-import java.util.Arrays;
-import java.util.BitSet;
 
+class SuccinctChunk extends RankedBitVector {
 
-class SubChunk extends AbstractBitVector{
-
-    private IntVector relativeRank1;
-
-    /**
-     *
-     * @param data the input data to be compressed
-     * @param start the start index of the data (inclusive)
-     * @param end the end index of the data (exclusive)
-     */
-    public SubChunk(boolean[] data, int start, int end) {
-        int bitWidth = (int) Math.ceil(Math.log(end - start) / Math.log(2));
-        relativeRank1 = new IntVector(data.length, bitWidth);
-        int count = 0;
-        for (int i = start; i < end; i++) {
-            if (data[i]) {
-                count++;
-            }
-            relativeRank1.add(i - start, count);
-        }
-    }
-
-    public int getRank(int i) {
-        return relativeRank1.get(i);
-    }
-
-    public int size() {
-        return relativeRank1.length();
-    }
-
-}
-
-class Chunk extends AbstractBitVector {
-    SubChunk[] subChunks;
     IntVector subChunkRanks;
+    IntVector lookupIndices;
     int subChunkSize;
-    int chunkSize;
-    public Chunk(boolean[] data, int start, int end, int subChunkSize) {
+    int totalElements;
+    IntVector[] lookupTable;
+
+    public SuccinctChunk(boolean[] data, int start, int end, int subChunkSize) {
+        this(data, start, end, subChunkSize, Utils.createLookupTable(subChunkSize));
+    }
+
+    public SuccinctChunk(boolean[] data, int start, int end) {
+        this(data, start, end, (int) (Math.min(Math.sqrt(end - start) / 2, 10)));
+    }
+
+    public SuccinctChunk(boolean[] data, int start, int end, int subChunkSize, IntVector[] lookupTable) {
         this.subChunkSize = subChunkSize;
-        chunkSize = end - start;
-        int numSubChunks = (int) Math.ceil(chunkSize / (double) subChunkSize);
-        var bitsPerElement = (int) Math.ceil(Math.log(chunkSize) / Math.log(2));
-        subChunks = new SubChunk[numSubChunks];
-        subChunkRanks = new IntVector(numSubChunks, bitsPerElement);
+        this.totalElements = end - start;
+        this.lookupTable = lookupTable;
+        int numSubChunks = (int) Math.ceil(totalElements / (double) subChunkSize);
+        var subChunkRankBitWidth = (int) Math.ceil(Math.log(totalElements) / Math.log(2));
+        var lookupIndexBitWidth = (int) Math.ceil(Math.log(lookupTable.length) / Math.log(2));
+        lookupIndices = new IntVector(numSubChunks, lookupIndexBitWidth);
+        subChunkRanks = new IntVector(numSubChunks, subChunkRankBitWidth);
         int counts = 0;
         for (int i = 0; i < numSubChunks; i++) {
             int subChunkStart = i * subChunkSize + start;
             int subChunkEnd = Math.min((i + 1) * subChunkSize + start, end);
-            subChunks[i] = new SubChunk(data, subChunkStart, subChunkEnd);
-            counts += subChunks[i].getRank(subChunkEnd - subChunkStart - 1);
+            int lookupIndex = Utils.getLookupIndex(data, subChunkStart, subChunkEnd);
+            counts += lookupTable[lookupIndex].get(subChunkEnd - subChunkStart - 1);
             subChunkRanks.add(i, counts);
+            lookupIndices.add(i, lookupIndex);
         }
     }
 
-    public Chunk(boolean[] data, int start, int end) {
-        this(data, start, end, (int) Math.ceil(Math.sqrt(end - start) / Math.log(2)));
-    }
-
-    public int size() {
-        return chunkSize;
-    }
-
+    @Override
     public int getRank(int i) {
-        return getRank(i, subChunkSize, subChunks, subChunkRanks);
+        int chunkIndex = i / subChunkSize;
+        int lookupIndex = lookupIndices.get(chunkIndex);
+        int chunkOffset = i % subChunkSize;
+        int relativeRank = lookupTable[lookupIndex].get(chunkOffset);
+        int chunkRank = chunkIndex > 0 ? subChunkRanks.get(chunkIndex - 1) : 0;
+//        System.out.println("chunkRank: " + chunkRank + " relativeRank: " + relativeRank);
+        return chunkRank + relativeRank;
+    }
+
+    @Override
+    public int size() {
+        return totalElements;
+    }
+
+    @Override
+    public long overhead() {
+        long overhead = overheadExcludeLookup();
+        for (IntVector lookup : lookupTable) {
+            overhead += lookup.overhead();
+        }
+        return overhead;
+    }
+
+
+    public long overheadExcludeLookup() {
+        long overhead = subChunkRanks.overhead() + lookupIndices.overhead();
+        return overhead + 3 * Integer.SIZE; // chunkSize, totalElements, and lookupTable.length
     }
 }
 
-public class SuccinctBitVector extends AbstractBitVector {
-
-    int n;
-    int nChunks;
-    int chunkSize;
-    Chunk[] chunks;
+public class SuccinctBitVector extends RankedBitVector {
     IntVector chunkRanks;
+    SuccinctChunk[] chunks;
 
-    public static int[] createSelectArray(int[] rankArray) {
-        int[] selectArray = new int[rankArray[rankArray.length - 1]];
-        int selectIndex = 0;
-        for (int i = 1; i < rankArray.length; i++) {
-            if(rankArray[i] > rankArray[i - 1]) {
-                selectArray[selectIndex++] = i;
-            }
-        }
-        return selectArray;
-    }
+    IntVector[] lookupTable;
+    int chunkSize;
+
+    int subChunkSize;
+    int totalElements;
 
     public SuccinctBitVector(boolean[] data, int chunkSize) {
-        this.n = data.length;
         this.chunkSize = chunkSize;
-        this.nChunks = (int) Math.ceil(data.length / (double) chunkSize);
-        chunks = new Chunk[nChunks];
-        int bitsPerElement = (int) Math.ceil(Math.log(data.length) / Math.log(2));
-        chunkRanks = new IntVector(nChunks, bitsPerElement);
+        this.subChunkSize = (int) (Math.sqrt(chunkSize) / 2);
+        System.out.println("Creating SuccinctBitVector of size " + data.length + " with chunkSize " + chunkSize + " and subChunkSize " + subChunkSize);
+        this.totalElements = data.length;
+        int numChunks = (int) Math.ceil(totalElements / (double) chunkSize);
+        var bitsPerElement = (int) Math.ceil(Math.log(totalElements) / Math.log(2));
+
+        chunks = new SuccinctChunk[numChunks];
+        chunkRanks = new IntVector(numChunks, bitsPerElement);
         int counts = 0;
-        for (int i = 0; i < nChunks; i++) {
+        lookupTable = Utils.createLookupTable(subChunkSize);
+        for (int i = 0; i < numChunks; i++) {
             int chunkStart = i * chunkSize;
             int chunkEnd = Math.min((i + 1) * chunkSize, data.length);
-            chunks[i] = new Chunk(data, chunkStart, chunkEnd);
+            chunks[i] = new SuccinctChunk(data, chunkStart, chunkEnd, subChunkSize, lookupTable);
             counts += chunks[i].getRank(chunkEnd - chunkStart - 1);
             chunkRanks.add(i, counts);
         }
     }
 
     public SuccinctBitVector(boolean[] data) {
-        this(data, (int) Math.ceil(Math.pow(Math.log(data.length) / Math.log(2), 2)));
-    }
-
-    public int size() {
-        return n;
-    }
-
-    public int getRank(int i) {
-        return getRank(i, chunkSize, chunks, chunkRanks);
+        this(data, (int) Math.pow(Math.log(data.length) / Math.log(2), 2));
     }
 
     public static void main(String[] args) {
-        boolean segment[] = new boolean[]{false, true, false, true, true, false, false, false, true, false, false};
-
-        // repeat the segment to make it longer
-        boolean[] data = new boolean[segment.length * 10];
+        boolean[] data = {true, true, false, false, true, false, true, false, false, false, false, true, true, false,
+                true, false, true, true, true, false};
+        int[] bits = new int[data.length];
         for (int i = 0; i < data.length; i++) {
-            data[i] = segment[i % segment.length];
+            bits[i] = data[i] ? 1 : 0;
         }
-
-        // print 0 1 array instead of false true
-        for (boolean b : data) {
-            System.out.print((b ? 1 : 0) + " ");
+        int nBits = 4;
+        IntVector[] lookupTable = Utils.createLookupTable(nBits);
+        for (int i = 0; i < lookupTable.length; i++) {
+            System.out.println(i + " " + lookupTable[i]);
         }
-        System.out.println();
-
-        BitSet bitSet = new BitSet(data.length);
-        for (int i = 0; i < data.length; i++) {
-            bitSet.set(i, data[i]);
-        }
-        System.out.println(bitSet);
-        SubChunk subChunk = new SubChunk(data, 0, data.length);
-        var ranks = new int[data.length];
-        for (int i = 0; i < data.length; i++) {
-            ranks[i] = subChunk.getRank(i);
-        }
-        var selects_1 = createSelectArray(ranks);
-        System.out.println(Arrays.toString(ranks));
-        System.out.println(Arrays.toString(selects_1));
+    }
 
 
-        Chunk chunk = new Chunk(data, 0, data.length);
-        for (int i = 0; i < data.length; i++) {
-            ranks[i] = chunk.getRank(i);
-        }
-        System.out.println(Arrays.toString(ranks));
-        var selects_2 = createSelectArray(ranks);
-        System.out.println(Arrays.toString(selects_2));
+    @Override
+    public int getRank(int i) {
+        return Utils.getRank(i, chunkSize, chunks, chunkRanks);
+    }
 
-        SuccinctBitVector succinctBitVector = new SuccinctBitVector(data);
-        for (int i = 0; i < data.length; i++) {
-            ranks[i] = succinctBitVector.getRank(i);
-        }
-        System.out.println(Arrays.toString(ranks));
-        var selects_3 = createSelectArray(ranks);
-        System.out.println(Arrays.toString(selects_3));
+    @Override
+    public int size() {
+        return totalElements;
+    }
 
-        System.out.println("Selects equal: " + Arrays.equals(selects_1, selects_2) + " " + Arrays.equals(selects_2, selects_3));
-
-        System.out.println("Cardinality: " + bitSet.cardinality());
-        for (int i = 0; i <= bitSet.cardinality() + 1; i++) {
-            System.out.println("Select " + i + ": " + succinctBitVector.select(i) + " " + bitSet.nextSetBit(i));
+    @Override
+    public long overhead() {
+        long overhead = chunkRanks.overhead();
+        long chunkOverhead = 0;
+        for (SuccinctChunk c : chunks) {
+            chunkOverhead += c.overheadExcludeLookup();
         }
+        long lookupTableOverhead = 0;
+        for (IntVector v : lookupTable) {
+            lookupTableOverhead += v.overhead();
+        }
+        return overhead + chunkOverhead + lookupTableOverhead + 2 * Integer.SIZE; // chunkSize, totalElements
     }
 }

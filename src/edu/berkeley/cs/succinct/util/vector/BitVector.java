@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 
 public class BitVector {
 
-        private long[] data;
+    private long[] data;
 
     /**
      * Default constructor for BitVector.
@@ -229,7 +229,7 @@ public class BitVector {
         }
     }
 
-    public int size() {
+    public int overhead() {
         return data.length * Long.SIZE;
     }
 

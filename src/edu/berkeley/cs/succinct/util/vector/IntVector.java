@@ -175,15 +175,15 @@ public class IntVector extends BitVector {
         super.writeToStream(out);
     }
 
-    public int length() {
+    public int size() {
         return numElements;
     }
 
     public String toString() {
         StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < length(); i++) {
+        for (int i = 0; i < size(); i++) {
             sb.append(get(i));
-            if (i < length() - 1)
+            if (i < size() - 1)
                 sb.append(" ");
         }
         sb.append("]");
