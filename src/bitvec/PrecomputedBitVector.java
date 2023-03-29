@@ -1,14 +1,16 @@
+package bitvec;
+
 import edu.berkeley.cs.succinct.util.vector.IntVector;
+import util.Utils;
 
 class PrecomputedLongBitVector extends RankedBitVector {
 
     private final long[] relativeRank;
 
     /**
-     *
-     * @param data the input data to be compressed
+     * @param data  the input data to be compressed
      * @param start the start index of the data (inclusive)
-     * @param end the end index of the data (exclusive)
+     * @param end   the end index of the data (exclusive)
      */
     public PrecomputedLongBitVector(boolean[] data, int start, int end) {
         relativeRank = new long[end - start];
@@ -21,8 +23,8 @@ class PrecomputedLongBitVector extends RankedBitVector {
         }
     }
 
-    public int getRank(int i) {
-        return (int) relativeRank[i];
+    public int getRank(int index) {
+        return (int) relativeRank[index];
     }
 
     public int size() {
@@ -37,36 +39,44 @@ class PrecomputedLongBitVector extends RankedBitVector {
 
 class PrecomputedEfficientBitVector extends RankedBitVector {
 
-    private IntVector relativeRank;
+    private final IntVector ranks;
+    private final int size;
 
     /**
-     *
-     * @param data the input data to be compressed
+     * @param data  the input data to be compressed
      * @param start the start index of the data (inclusive)
-     * @param end the end index of the data (exclusive)
+     * @param end   the end index of the data (exclusive)
      */
     public PrecomputedEfficientBitVector(boolean[] data, int start, int end) {
-        int bitWidth = (int) Math.ceil(Math.log(end - start) / Math.log(2));
-        relativeRank = new IntVector(data.length, bitWidth);
+        int setBits = Utils.countBits(data, start, end);
+        int bitWidth = Utils.getMaxBitWidth(setBits);
+
+        size = end - start;
+        ranks = new IntVector(size, bitWidth);
+
         int count = 0;
-        for (int i = start; i < end; i++) {
-            if (data[i]) {
+        for (int i = 0; i < ranks.size(); i++) {
+            if (i + start < end && data[start + i]) {
                 count++;
             }
-            relativeRank.add(i - start, count);
+            ranks.add(i, count);
         }
     }
 
-    public int getRank(int i) {
-        return relativeRank.get(i);
+    public PrecomputedEfficientBitVector(boolean[] data) {
+        this(data, 0, data.length);
+    }
+
+    public int getRank(int index) {
+        return ranks.get(index);
     }
 
     public int size() {
-        return relativeRank.size();
+        return size;
     }
 
     public long overhead() {
-        return relativeRank.overhead();
+        return ranks.overhead() + Integer.SIZE; // size
     }
 
 }

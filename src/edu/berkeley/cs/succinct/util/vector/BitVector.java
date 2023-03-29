@@ -229,8 +229,20 @@ public class BitVector {
         }
     }
 
-    public int overhead() {
+    /**
+     * Get the number of bits used to store the BitVector.
+     * @return number of bits
+     */
+    public int size() {
         return data.length * Long.SIZE;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (long datum : data) {
+            sb.append(Long.toBinaryString(datum));
+        }
+        return sb.toString();
+    }
 }

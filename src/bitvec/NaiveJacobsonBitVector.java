@@ -1,4 +1,7 @@
+package bitvec;
+
 import edu.berkeley.cs.succinct.util.vector.IntVector;
+import util.Utils;
 
 public class NaiveJacobsonBitVector extends RankedBitVector {
     RankedBitVector[] chunks;
@@ -50,15 +53,15 @@ public class NaiveJacobsonBitVector extends RankedBitVector {
     }
 
     public long overhead() {
-        long overhead = chunkRanks.overhead();
+        long overhead = chunkRanks.size();
         for (var chunk : chunks) {
             overhead += chunk.overhead();
         }
         return overhead + Integer.SIZE * 2; // chunkSize and totalElements
     }
 
-    public int getRank(int i) {
-        return Utils.getRank(i, chunkSize, chunks, chunkRanks);
+    public int getRank(int index) {
+        return Utils.getRank(index, chunkSize, chunks, chunkRanks);
     }
 
 }

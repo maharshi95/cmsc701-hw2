@@ -15,8 +15,7 @@ import java.util.IllegalFormatPrecisionException;
  */
 public class IntVector extends BitVector {
 
-    private int bitWidth;
-    private int numElements;
+    private final int bitWidth;
 
     /**
      * Default constructor for IntVector.
@@ -33,8 +32,7 @@ public class IntVector extends BitVector {
      * @param bitWidth    Width in bits of each element.
      */
     public IntVector(int numElements, int bitWidth) {
-        super(numElements * bitWidth);
-        this.numElements = numElements;
+        super((long) numElements * bitWidth);
         this.bitWidth = bitWidth;
     }
 
@@ -175,13 +173,27 @@ public class IntVector extends BitVector {
         super.writeToStream(out);
     }
 
+    /**
+     * Get the number of elements in the IntVector.
+     * This is the same as the size of the underlying BitVector divided by the element bit-width.
+     * @return Number of elements in the IntVector.
+     */
     public int size() {
-        return numElements;
+       return super.size() / bitWidth;
+    }
+
+    /**
+     * Get the overhead of the IntVector.
+     * @return Number of bits used for storing the IntVector.
+     */
+    public int overhead() {
+        return super.size() + Integer.SIZE;
     }
 
     public String toString() {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < size(); i++) {
+            System.out.println("i: " + i + " size: " + size());
             sb.append(get(i));
             if (i < size() - 1)
                 sb.append(" ");

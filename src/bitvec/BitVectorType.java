@@ -1,0 +1,10 @@
+package bitvec;
+
+public enum BitVectorType {
+    PRECOMPUTED_LONG,
+    PRECOMPUTED_EFFICIENT,
+    SUCCINCT_CHUNK,
+    SUCCINCT_BITVEC,
+    SUPER_SUCCINCT_CHUNK,
+    SUPER_SUCCINCT_BITVEC,
+}
