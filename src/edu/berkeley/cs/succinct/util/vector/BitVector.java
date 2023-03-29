@@ -5,6 +5,7 @@ import edu.berkeley.cs.succinct.util.BitUtils;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
@@ -13,7 +14,7 @@ import java.nio.ByteBuffer;
  */
 
 
-public class BitVector {
+public class BitVector implements Serializable {
 
     private long[] data;
 

@@ -1,6 +1,8 @@
 package lookup;
 
-public abstract class SubChunkLookup {
+import java.io.Serializable;
+
+public abstract class SubChunkLookup implements Serializable {
     int nBits;
 
     public SubChunkLookup(int nBits) {

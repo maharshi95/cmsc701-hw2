@@ -93,6 +93,5 @@ public class RankSelectDemo {
         System.out.println("\nNaiveJacobsonBitVector");
         var jacobsonBitVector = new NaiveJacobsonBitVector(data);
         analyzeBitVec(jacobsonBitVector, data, selects);
-
     }
 }

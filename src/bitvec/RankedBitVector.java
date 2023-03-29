@@ -1,6 +1,8 @@
 package bitvec;
 
-public abstract class RankedBitVector {
+import java.io.*;
+
+public abstract class RankedBitVector implements Serializable {
     /**
      * Abstract method to return the 1-rank (inclusive) at position index.
      * This method must be implemented by all subclasses.
@@ -93,5 +95,19 @@ public abstract class RankedBitVector {
             return (int) Math.ceil(Math.sqrt(N) / 2);
         else
             return (int) Math.ceil(Math.pow(Math.log(N) / Math.log(2), 2));
+    }
+
+    public void save(String filename){
+        try(var out = new ObjectOutputStream(new FileOutputStream(filename))) {
+            out.writeObject(this);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static RankedBitVector load(String filename) throws IOException, ClassNotFoundException {
+        try(var in = new ObjectInputStream(new FileInputStream(filename))) {
+            return (RankedBitVector) in.readObject();
+        }
     }
 }

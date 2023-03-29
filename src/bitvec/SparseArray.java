@@ -3,10 +3,11 @@ package bitvec;
 import bitvec.BitVectorFactory;
 import bitvec.RankedBitVector;
 
+import java.io.*;
 import java.util.ArrayList;
 
 
-public class SparseArray<T> {
+public class SparseArray<T> implements Serializable {
     private final int size;
     private boolean finalized = false;
     private final ArrayList<Integer> positions;
@@ -24,8 +25,9 @@ public class SparseArray<T> {
      * If the array is already finalized, this will throw an exception.
      * If the position is out of bounds, this will throw an exception.
      * If the position is not in increasing order, this will throw an exception.
+     *
      * @param value the value to append
-     * @param pos the 0-indexed position to append the value at
+     * @param pos   the 0-indexed position to append the value at
      */
     public void append(T value, int pos) {
         if (finalized) throw new RuntimeException("Cannot append to finalized array");
@@ -48,6 +50,7 @@ public class SparseArray<T> {
 
     /**
      * Get the rth element in the array. Here, r is 1-indexed.
+     *
      * @param r the 1-indexed rank of the element
      * @return the element at the given rank, or null if r is out of bounds
      */
@@ -60,6 +63,7 @@ public class SparseArray<T> {
 
     /**
      * Get the element at the given position.
+     *
      * @param p the 0-indexed position of the element
      * @return the element at the given position wrapped in a ReturnItem.
      */
@@ -73,6 +77,7 @@ public class SparseArray<T> {
     /**
      * Find the index in the array where the rth element first appears.
      * Here, r is 1-indexed. If r is out of bounds, this will return -1.
+     *
      * @param r the 1-indexed rank of the element
      * @return the index of the element, or -1 if r is out of bounds
      */
@@ -81,11 +86,12 @@ public class SparseArray<T> {
             return -1;
         }
 
-        return bitVector.select(r-1) + 1;
+        return bitVector.select(r - 1) + 1;
     }
 
     /**
      * Find the number of elements in the array that appear at or before the given position.
+     *
      * @param p the position to check
      * @return the number of elements that appear at or before the given position, or -1 if p is out of bounds
      */
@@ -106,7 +112,7 @@ public class SparseArray<T> {
 
     public long overhead() {
         long overhead = bitVector.overhead() + (long) positions.size() * Integer.SIZE;
-        return overhead +  valuesOverhead(overhead);
+        return overhead + valuesOverhead(overhead);
     }
 
     public long altOverhead() {
@@ -115,7 +121,7 @@ public class SparseArray<T> {
     }
 
     private long valuesOverhead(long overhead) {
-        for (var v: values) {
+        for (var v : values) {
             overhead += (long) (v.toString().length() + 1) * Character.SIZE;
         }
         overhead += Byte.SIZE; // finalized
@@ -124,12 +130,31 @@ public class SparseArray<T> {
         return overhead;
     }
 
+    public void save(String filename) {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filename))) {
+            out.writeObject(this);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static SparseArray load(String filename) {
+        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(filename))) {
+            return (SparseArray) in.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
     public record ReturnItem<E>(E item, boolean success) {
         @Override
-            public String toString() {
-                return "ReturnItem{" + "elem=" + item + ", success=" + success + "}";
-            }
+        public String toString() {
+            return "ReturnItem{" + "elem=" + item + ", success=" + success + "}";
         }
+    }
+
 }
 
 
